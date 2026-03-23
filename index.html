@@ -252,7 +252,7 @@ body{font-family:'Quicksand',sans-serif;background:var(--cream);color:var(--text
 /* ============================================
    🔒 PASSWORT — Ändere es hier:
    ============================================ */
-const ALBUM_PASSWORD = "LEAN";
+const ALBUM_PASSWORD = "DEIN_PASSWORT_HIER";
 /* ============================================ */
 
 /* ============================================
@@ -378,7 +378,13 @@ let allMedia=[]; // sorted by slot number
 let ssIdx=0,ssPlaying=false,ssTimerHandle=null,ssVideoPlaying=false;
 const SS_INTERVAL=3000;
 
-function initAlbum(){buildAlbum();loadAllMedia();initScroll();initNav()}
+function initAlbum(){
+  buildAlbum();
+  // Delay media loading to ensure DOM is ready (important for mobile)
+  setTimeout(loadAllMedia, 100);
+  initScroll();
+  initNav();
+}
 
 function buildSlot(){
   const n=slotNum++,p=String(n).padStart(2,'0');
@@ -422,30 +428,37 @@ function tryLoadSlot(n){
   const sl=document.getElementById('slot-'+p);
   if(!sl||loadedSlots.has(p))return;
 
-  // Try video formats first
+  // Try video formats sequentially, then images
   const vidExts=['mp4','MP4','mov','MOV'];
-  let vidTried=0;
-  vidExts.forEach(vext=>{
-    const vid=document.createElement('video');
-    vid.preload='metadata';
-    vid.onloadedmetadata=function(){
-      if(loadedSlots.has(p))return;
-      loadedSlots.add(p);
-      const src=`fotos/${p}.${vext}`;
-      const month=getMonth(sl);
-      const cap=getCaption(n,'video');
-      sl.innerHTML=`<video src="${src}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)"></video><div class="video-badge">🎬 Video</div><div class="play-icon-overlay">▶</div><div class="media-caption">${cap}</div>`;
-      sl.classList.add('has-video');
-      allMedia.push({type:'video',src,label:cap,month,order:n});
-      allMedia.sort((a,b)=>a.order-b.order);
-      sl.onclick=()=>playVideoStandalone(src);
-    };
-    vid.onerror=function(){
-      vidTried++;
-      if(vidTried===vidExts.length&&!loadedSlots.has(p)) tryImageExts(n,p,sl,0);
-    };
-    vid.src=`fotos/${p}.${vext}`;
-  });
+  tryVideoExt(n,p,sl,vidExts,0);
+}
+
+function tryVideoExt(n,p,sl,vidExts,idx){
+  if(loadedSlots.has(p))return;
+  if(idx>=vidExts.length){
+    // No video found, try images
+    tryImageExts(n,p,sl,0);
+    return;
+  }
+  const vext=vidExts[idx];
+  const vid=document.createElement('video');
+  vid.preload='metadata';
+  vid.onloadedmetadata=function(){
+    if(loadedSlots.has(p))return;
+    loadedSlots.add(p);
+    const src=`fotos/${p}.${vext}`;
+    const month=getMonth(sl);
+    const cap=getCaption(n,'video');
+    sl.innerHTML=`<video src="${src}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)"></video><div class="video-badge">🎬 Video</div><div class="play-icon-overlay">▶</div><div class="media-caption">${cap}</div>`;
+    sl.classList.add('has-video');
+    allMedia.push({type:'video',src,label:cap,month,order:n});
+    allMedia.sort((a,b)=>a.order-b.order);
+    sl.onclick=()=>playVideoStandalone(src);
+  };
+  vid.onerror=function(){
+    tryVideoExt(n,p,sl,vidExts,idx+1);
+  };
+  vid.src=`fotos/${p}.${vext}`;
 }
 
 function tryImageExts(n,p,sl,extIdx){
